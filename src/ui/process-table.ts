@@ -26,6 +26,15 @@ import { formatDuration, formatPorts, padColumn } from "../util/format.ts";
 const GAP = "  ";
 
 /**
+ * Horizontal offset that `SelectRenderable` adds to every option's `name`
+ * before drawing it: 1 column of internal left padding (its `contentX + 1`)
+ * plus 2 columns reserved for the "▶ " / "  " selection indicator. The
+ * header is a plain `TextRenderable` sibling of the select, so we have to
+ * prepend this indent manually or its columns drift left of every data row.
+ */
+const HEADER_INDENT = "   ";
+
+/**
  * Per-column rendering config. `cap` bounds the auto-computed width so a
  * single pathological cell (a Spotify-sized port list, a 200-char cwd) can't
  * blow the table out; values that exceed the cap are truncated with "…" by
@@ -91,7 +100,7 @@ export function createProcessTable(renderer: CliRenderer): ProcessTableHandle {
     id: "process-table-header",
     // Filled in by the first setProcesses() call. Sized for the empty case
     // here so the bar isn't blank during the first render tick.
-    content: renderRow(HEADER_CELLS, computeWidths([])),
+    content: HEADER_INDENT + renderRow(HEADER_CELLS, computeWidths([])),
     fg: "#FFD66B",
     attributes: 1, // BOLD
   });
@@ -138,7 +147,7 @@ export function createProcessTable(renderer: CliRenderer): ProcessTableHandle {
 
       const cells = processes.map(toCells);
       const widths = computeWidths(cells);
-      headerRow.content = renderRow(HEADER_CELLS, widths);
+      headerRow.content = HEADER_INDENT + renderRow(HEADER_CELLS, widths);
 
       if (processes.length === 0) {
         select.options = [];
