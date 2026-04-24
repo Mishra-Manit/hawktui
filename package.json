@@ -1,0 +1,19 @@
+{
+  "name": "hawktui",
+  "version": "0.1.0",
+  "description": "A simple TUI to find and kill lingering localhost (TCP-listener) processes.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opentui/core": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}
