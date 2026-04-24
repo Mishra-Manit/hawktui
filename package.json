@@ -1,16 +1,52 @@
 {
-  "name": "hawktui",
+  "name": "@manitmishra/hawktui",
   "version": "0.1.0",
-  "description": "A simple TUI to find and kill lingering localhost (TCP-listener) processes.",
+  "description": "A tiny TUI for hunting down processes squatting on localhost ports.",
+  "keywords": [
+    "tui",
+    "cli",
+    "lsof",
+    "ports",
+    "kill",
+    "bun",
+    "opentui",
+    "dev-tools"
+  ],
+  "homepage": "https://github.com/manitmishra/hawktui",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/manitmishra/hawktui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/manitmishra/hawktui/issues"
+  },
+  "license": "MIT",
+  "author": "Manit Mishra",
   "type": "module",
-  "private": true,
+  "bin": {
+    "hawktui": "bin/hawktui.ts"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run typecheck"
   },
   "dependencies": {
-    "@opentui/core": "latest"
+    "@opentui/core": "^0.1.103"
   },
   "devDependencies": {
     "@types/bun": "latest",
