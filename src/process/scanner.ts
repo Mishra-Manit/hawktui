@@ -7,6 +7,11 @@
  *      for IPv4/IPv6 / multiple ports.
  *   2. A single `ps -o pid=,lstart=,command= -p <ids>` call backfills the
  *      start time and full argv for every PID in one shot.
+ *   3. A single `lsof -p <ids> -a -d cwd -Fpn` call backfills each process's
+ *      current working directory. This is the only reliable "where was this
+ *      launched from?" signal for tools like Next.js that rewrite
+ *      `process.title` (which would otherwise hide the original path from
+ *      `ps`).
  *
  * All parsing lives here, so the happy path is: strings in → `ProcessInfo[]`
  * out. No OpenTUI imports, no global state.
@@ -43,14 +48,21 @@ export async function scanListeningProcesses(): Promise<ProcessInfo[]> {
   if (records.size === 0) return [];
 
   const pids = [...records.keys()];
-  const psResult = await run([
-    "ps",
-    "-o",
-    "pid=,lstart=,command=",
-    "-p",
-    pids.join(","),
+  const pidList = pids.join(",");
+
+  // Run `ps` and the cwd `lsof` concurrently — they both target the same
+  // PID set and are independent of each other.
+  const [psResult, cwdResult] = await Promise.all([
+    run(["ps", "-o", "pid=,lstart=,command=", "-p", pidList]),
+    run(["lsof", "-p", pidList, "-a", "-d", "cwd", "-Fpn"]),
   ]);
   const psByPid = parsePs(psResult.stdout);
+  // cwd lookup is best-effort; if lsof fails entirely we still want the rest
+  // of the row to render. Empty map → every cwd is `null`.
+  const cwdByPid =
+    cwdResult.exitCode === 0 || cwdResult.stdout.length > 0
+      ? parseLsofCwd(cwdResult.stdout)
+      : new Map<number, string>();
 
   const now = Date.now();
   const out: ProcessInfo[] = [];
@@ -63,6 +75,7 @@ export async function scanListeningProcesses(): Promise<ProcessInfo[]> {
       fullCommand: ps.fullCommand,
       user: record.user,
       ports: [...record.ports].sort((a, b) => a - b),
+      cwd: cwdByPid.get(pid) ?? null,
       startedAt: ps.startedAt,
       uptimeMs: now - ps.startedAt.getTime(),
     });
@@ -131,6 +144,38 @@ function extractPort(name: string): number | null {
   if (colonIndex === -1) return null;
   const port = Number.parseInt(name.slice(colonIndex + 1), 10);
   return Number.isFinite(port) ? port : null;
+}
+
+/**
+ * Parse `lsof -p <ids> -a -d cwd -Fpn` output. The field-stream format alternates:
+ *
+ *   p<pid>     ← starts a new process block
+ *   fcwd       ← file descriptor tag (we filtered to just `cwd`)
+ *   n<path>    ← the cwd path
+ *
+ * We attach each `n` to the most recently seen `p`. PIDs without a path
+ * (permission-denied, race) are simply absent from the returned map; the
+ * caller maps that to `cwd = null`.
+ */
+export function parseLsofCwd(stdout: string): Map<number, string> {
+  const out = new Map<number, string>();
+  let currentPid: number | null = null;
+
+  for (const line of stdout.split("\n")) {
+    if (line.length === 0) continue;
+    const tag = line[0];
+    const value = line.slice(1);
+    if (tag === "p") {
+      const pid = Number.parseInt(value, 10);
+      currentPid = Number.isFinite(pid) ? pid : null;
+    } else if (tag === "n" && currentPid !== null && value.length > 0) {
+      out.set(currentPid, value);
+    }
+    // `f` and any unexpected fields are ignored; the `-d cwd` filter means
+    // we'll only see fcwd, but being permissive is harmless.
+  }
+
+  return out;
 }
 
 /** A single parsed `ps` row. */
